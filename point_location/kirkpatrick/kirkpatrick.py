@@ -1,4 +1,5 @@
 import triangle
+from planegeometry.structures.planarmaps import PlanarMap, Point, Segment
 
 class Kirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], intput_edges: list[tuple[int, int]]):
@@ -25,8 +26,8 @@ class Kirkpatrick:
             'segments': self.intput_edges + bounding_triangle_edges,
         }
 
-        triangulation_data = triangle.triangulate(tri_input, 'p')
-        self.base_triangulation = triangulation_data["triangles"]
+        self.triangulation_data = triangle.triangulate(tri_input, 'p')
+        self.base_triangulation = self.triangulation_data['triangles']
 
     def get_bounding_triangle(self, input_points: list[tuple[float, float]]) -> list[tuple[float, float]]:
 
@@ -62,6 +63,25 @@ class Kirkpatrick:
         ]
 
         return points
+    
+    def get_planar_map(self, triangulation:triangle.triangulate) -> PlanarMap:
+        planar_map = PlanarMap()
+        points = {i : Point(point[0], point[1]) for i, point in enumerate(triangulation['vertices'])}
+        edges = set()
+
+        get_edge = lambda x,y: (min(x,y), max(x,y))
+
+        for triangle in triangulation['triangles']:
+            a, b, c = tuple(triangle)
+            edges.add(get_edge(a,b))
+            edges.add(get_edge(b,c))
+            edges.add(get_edge(a,c))
+
+        segments = [Segment(points[i], points[j]) for i,j in edges]
+        for segment in segments:
+            planar_map.add_edge(segment)
+        
+        return planar_map
 
 if __name__ == "__main__":
     # Define the vertices of the polygon
@@ -91,9 +111,40 @@ if __name__ == "__main__":
     print(kirkpatrick.all_points)
     print(kirkpatrick.bounding_triangle_points_indices_set)
     print(kirkpatrick.base_triangulation)
+    planar_map = kirkpatrick.get_planar_map(kirkpatrick.triangulation_data)
 
     # Extract triangles and plot them
     import matplotlib.pyplot as plt
 
-    plt.triplot([x[0] for x in kirkpatrick.all_points], [x[1] for x in kirkpatrick.all_points], kirkpatrick.base_triangulation, color='gray', alpha=0.5)
-    plt.show()
+    # plt.triplot([x[0] for x in kirkpatrick.all_points], [x[1] for x in kirkpatrick.all_points], kirkpatrick.base_triangulation, color='gray', alpha=0.5)
+    # plt.show()
+
+    def draw_planar_map(planar_map):
+        fig, ax = plt.subplots()
+
+        # Rysowanie wierzchołków
+        for node in planar_map.iternodes():
+            ax.plot(node.x, node.y, 'o', color='blue')  # Wierzchołki jako niebieskie kropki
+            ax.text(node.x, node.y, f"{node.x, node.y}", fontsize=8, color='red')  # Indeksy wierzchołków
+
+        # Rysowanie krawędzi
+        for edge in planar_map.iteredges():
+            start_node = edge.source  # Początkowy wierzchołek
+            end_node = edge.target  # Końcowy wierzchołek
+            x = [start_node.x, end_node.x]
+            y = [start_node.y, end_node.y]
+            ax.plot(x, y, 'k-', linewidth=1)  # Rysowanie krawędzi jako czarna linia
+
+        # 3. Rysowanie twarzy (faces)
+        # for face in planar_map.iterfaces():  # Iteracja po twarzach
+        #     face_nodes = face.nodes  # Pobranie wierzchołków twarzy
+        #     x_coords = [node.x for node in face_nodes] + [face_nodes[0].x]
+        #     y_coords = [node.y for node in face_nodes] + [face_nodes[0].y]
+        #     ax.fill(x_coords, y_coords, alpha=0.3, edgecolor='black', facecolor='green')  # Rysowanie twarzy
+
+        # Ustawienia osi
+        ax.set_aspect('equal', adjustable='datalim')
+        plt.show()
+
+    # Wywołanie funkcji
+    draw_planar_map(planar_map)
