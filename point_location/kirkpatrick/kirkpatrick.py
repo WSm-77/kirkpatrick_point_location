@@ -28,13 +28,37 @@ class Kirkpatrick:
         triangulation_data = triangle.triangulate(tri_input, 'p')
         self.base_triangulation = triangulation_data["triangles"]
 
-    def get_bounding_triangle(self, input_points) -> list[tuple[float, float]]:
-        # TODO: implement
+    def get_bounding_triangle(self, input_points: list[tuple[float, float]]) -> list[tuple[float, float]]:
 
+        def find_extremes(input_points: list[tuple[float, float]]) -> list[float]:
+            inf = float('inf')
+            xmin, ymin = inf, inf
+            xmax, ymax = -inf, -inf
+            for x,y in input_points:
+                if x < xmin: xmin = x
+                if x > xmax: xmax = x
+                if y < ymin: ymin = y
+                if y > ymax: ymax = y
+            return [xmin, ymin, xmax, ymax]
+        
+        xmin, ymin, xmax, ymax = find_extremes(input_points)
+        x = xmax - xmin
+        y = ymax - ymin
+
+        # Defining points for triangle with no spacing - minimal triangle
+        # a = (x*y/2) ** (1/2)
+        # points = [
+        #     (xmin - a, ymin),  # BIG triangle
+        #     (xmax + a, ymin),   # BIG triangle
+        #     ((xmin + xmax)/2, ymax + a)     # BIG triangle
+        # ]
+
+        # Defining points for triangle with space
+        a = (x*y/2 + x + y + 2) ** (1/2)
         points = [
-            (-5, -3),  # BIG triangle
-            (9, -3),   # BIG triangle
-            (2, 9)     # BIG triangle
+            (xmin - a, ymin - 1),
+            (xmax + a, ymin -1),
+            ((xmin + xmax)/2, ymax + a)
         ]
 
         return points
