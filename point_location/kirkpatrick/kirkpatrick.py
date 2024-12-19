@@ -1,28 +1,25 @@
 import networkx as nx
 import triangle
-from planegeometry.structures.planarmaps import PlanarMap, Point, Segment
+from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
 
 class Kirkpatrick:
-    def __init__(self, input_points: list[tuple[float, float]], intput_edges: list[tuple[int, int]]):
+    def __init__(self, input_points: list[tuple[float, float]], input_edges: list[tuple[int, int]]):
+        # verify graph planarity
+        self.assert_planarity(input_edges)
+
         self.input_points = input_points
-        self.intput_edges = intput_edges
+        self.input_edges = input_edges
 
-        planar_subdivision = nx.Graph()
-        planar_subdivision.add_edges_from(self.intput_edges)
+        embedding = self.get_embedding(input_points, input_edges)
 
-        is_planar, _ = nx.check_planarity(planar_subdivision)
-
-        if not is_planar:
-            raise ValueError("This subdivision is not planar!!!")
-
-        embedding = self.get_embedding(input_points, intput_edges)
-
-        self.input_faces = self.get_faces(intput_edges, embedding)
+        self.input_faces = self.filter_outer_face(self.get_faces(input_edges, embedding))
 
         self.bounding_triangle = self.get_bounding_triangle(input_points)
 
         self.all_points = self.input_points + self.bounding_triangle
+
+        self.points_to_idx = {tuple(point) : idx for idx, point in enumerate(self.all_points)}
 
         all_points_cnt = len(self.all_points)
 
@@ -37,11 +34,49 @@ class Kirkpatrick:
 
         tri_input = {
             'vertices': self.all_points,
-            'segments': self.intput_edges + bounding_triangle_edges,
+            'segments': self.input_edges + bounding_triangle_edges,
         }
 
         self.triangulation_data = triangle.triangulate(tri_input, 'p')
         self.base_triangulation = self.triangulation_data['triangles']
+
+        self.planar_map = self.get_planar_map(self.triangulation_data)
+
+        # add input faces indices as leaf nodes to hierarchy tree/graph
+        self.hierarchy_graph: dict[Triangle | int, list[Triangle] | None] = {i : None for i in range(len(self.input_faces))}
+
+    def assert_planarity(self, input_edges):
+        planar_subdivision = nx.Graph()
+        planar_subdivision.add_edges_from(input_edges)
+
+        is_planar, _ = nx.check_planarity(planar_subdivision)
+
+        if not is_planar:
+            raise ValueError("This subdivision is not planar!!!")
+
+    def get_base_hierarchy_graph(self, ):
+        pass
+
+    def filter_outer_face(self, input_faces):
+        filtered_faces = []
+
+        for face in input_faces:
+            p1 = face[0][0]
+            p2 = face[1][0]
+            p3 = face[2][0]
+
+            if Kirkpatrick.orient(self.input_points[p1], self.input_points[p2], self.input_points[p3]) == -1:
+                continue
+
+            filtered_faces.append(face)
+
+        return filtered_faces
+
+    def idx_to_point(self, idx: int) -> tuple[float, float]:
+        return self.all_points[idx]
+
+    def point_to_idx(self, point: tuple[float, float]) -> int:
+        return self.points_to_idx[point]
 
     def get_bounding_triangle(self, input_points: list[tuple[float, float]]) -> list[tuple[float, float]]:
 
