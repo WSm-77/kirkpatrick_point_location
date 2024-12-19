@@ -45,6 +45,8 @@ class Kirkpatrick:
         # add input faces indices as leaf nodes to hierarchy tree/graph
         self.hierarchy_graph: dict[Triangle | int, list[Triangle] | None] = {i : None for i in range(len(self.input_faces))}
 
+        self.initialize_hierarchy_graph()
+
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
         planar_subdivision.add_edges_from(input_edges)
@@ -54,8 +56,25 @@ class Kirkpatrick:
         if not is_planar:
             raise ValueError("This subdivision is not planar!!!")
 
-    def get_base_hierarchy_graph(self, ):
-        pass
+    def initialize_hierarchy_graph(self):
+        faces_sets = [{edge[0] for edge in face} for face in self.input_faces]
+
+        for a, b, c in self.base_triangulation:
+            point_a = Point(*self.idx_to_point(a))
+            point_b = Point(*self.idx_to_point(b))
+            point_c = Point(*self.idx_to_point(c))
+
+            triangle_object = Triangle(point_a, point_b, point_c)
+
+            if triangle_object not in self.hierarchy_graph:
+                self.hierarchy_graph[triangle_object] = []
+
+            for face_idx, face_set in enumerate(faces_sets):
+                # check if current triangle is included in current face
+                if (a in face_set) and (b in face_set) and (c in face_set):
+                    self.hierarchy_graph[triangle_object].append(face_idx)
+                    # this triangle can be included only by one face, so we can break
+                    break
 
     def filter_outer_face(self, input_faces):
         filtered_faces = []
