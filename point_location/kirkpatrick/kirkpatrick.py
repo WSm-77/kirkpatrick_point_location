@@ -1,3 +1,4 @@
+import networkx as nx
 import triangle
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment
 
@@ -5,6 +6,16 @@ class Kirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], intput_edges: list[tuple[int, int]]):
         self.input_points = input_points
         self.intput_edges = intput_edges
+
+        planar_subdivision = nx.Graph()
+        planar_subdivision.add_edges_from(self.intput_edges)
+
+        is_planar, embedding = nx.check_planarity(planar_subdivision)
+
+        if not is_planar:
+            raise ValueError("Tis subdivision is not planar!!!")
+
+        self.input_faces = self.get_faces(intput_edges, embedding.get_data())
 
         self.bounding_triangle = self.get_bounding_triangle(input_points)
 
@@ -41,7 +52,7 @@ class Kirkpatrick:
                 if y < ymin: ymin = y
                 if y > ymax: ymax = y
             return [xmin, ymin, xmax, ymax]
-        
+
         xmin, ymin, xmax, ymax = find_extremes(input_points)
         x = xmax - xmin
         y = ymax - ymin
@@ -63,7 +74,7 @@ class Kirkpatrick:
         ]
 
         return points
-    
+
     def get_planar_map(self, triangulation:triangle.triangulate) -> PlanarMap:
         planar_map = PlanarMap()
         points = {i : Point(point[0], point[1]) for i, point in enumerate(triangulation['vertices'])}
@@ -80,8 +91,54 @@ class Kirkpatrick:
         segments = [Segment(points[i], points[j]) for i,j in edges]
         for segment in segments:
             planar_map.add_edge(segment)
-        
+
         return planar_map
+
+    def get_faces(self, edges, embedding) -> list[tuple[int, int]]:
+        """
+        Returns faces of planar subdivision
+
+        :param edges: is an undirected graph as a list of undirected edges
+        :param embedding: is a combinatorial embedding dictionary. Format: v1:[v2,v3], v2:[v1], v3:[v1] - clockwise
+        ordering of neighbors at each vertex.
+
+        :return: list of faces represented as list of edges
+        """
+
+        # Establish set of possible edges
+        edgeset = set()
+        for edge in edges: # edges is an undirected graph as a set of undirected edges
+            edge = list(edge)
+            edgeset |= set([(edge[0],edge[1]),(edge[1],edge[0])])
+
+        # Storage for face paths
+        faces = []
+        path  = []
+        for edge in edgeset:
+            path.append(edge)
+            edgeset -= set([edge])
+            break  # (Only one iteration)
+
+        # Trace faces
+        while (len(edgeset) > 0):
+            neighbors = embedding[path[-1][-1]]
+            next_node = neighbors[(neighbors.index(path[-1][-2])+1) % len(neighbors)]
+            tup = (path[-1][-1], next_node)
+            if tup == path[0]:
+                faces.append(path)
+                path = []
+                for edge in edgeset:
+                    path.append(edge)
+                    edgeset -= set([edge])
+                    break  # (Only one iteration)
+            else:
+                path.append(tup)
+                edgeset -= set([tup])
+                
+        if (len(path) != 0):
+            faces.append(path)
+
+        return faces
 
 if __name__ == "__main__":
     # Define the vertices of the polygon
@@ -111,6 +168,7 @@ if __name__ == "__main__":
     print(kirkpatrick.all_points)
     print(kirkpatrick.bounding_triangle_points_indices_set)
     print(kirkpatrick.base_triangulation)
+    print(*kirkpatrick.input_faces, sep="\n")
     planar_map = kirkpatrick.get_planar_map(kirkpatrick.triangulation_data)
 
     # Extract triangles and plot them
