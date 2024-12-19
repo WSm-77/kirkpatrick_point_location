@@ -1,6 +1,7 @@
 import networkx as nx
 import triangle
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment
+from functools import cmp_to_key
 
 class Kirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], intput_edges: list[tuple[int, int]]):
@@ -10,12 +11,14 @@ class Kirkpatrick:
         planar_subdivision = nx.Graph()
         planar_subdivision.add_edges_from(self.intput_edges)
 
-        is_planar, embedding = nx.check_planarity(planar_subdivision)
+        is_planar, _ = nx.check_planarity(planar_subdivision)
 
         if not is_planar:
-            raise ValueError("Tis subdivision is not planar!!!")
+            raise ValueError("This subdivision is not planar!!!")
 
-        self.input_faces = self.get_faces(intput_edges, embedding.get_data())
+        embedding = self.get_embedding(input_points, intput_edges)
+
+        self.input_faces = self.get_faces(intput_edges, embedding)
 
         self.bounding_triangle = self.get_bounding_triangle(input_points)
 
@@ -140,12 +143,70 @@ class Kirkpatrick:
 
         return faces
 
+    def get_embedding(self, points, edges):
+        def get_cmp_clockwise(vertex):
+            return lambda v1, v2: (Kirkpatrick.orient(vertex_to_point[vertex], vertex_to_point[v1], vertex_to_point[v2]))
+
+        graph: dict[int, list] = {}
+        vertex_to_point = {}
+
+        for v, point in enumerate(points):
+            graph[v] = []
+            vertex_to_point[v] = point
+
+        for vertex, neighbour in edges:
+            graph[vertex].append(neighbour)
+            graph[neighbour].append(vertex)
+
+        for vertex in graph.keys():
+            graph[vertex].sort(key = cmp_to_key(get_cmp_clockwise(vertex)))
+
+        return graph
+
+    @staticmethod
+    def mat_det_2x2(a, b, c):
+        """
+        Calculating the determinant of a 2x2 matrix
+
+        :param a: a tuple of coordinates (x, y) of the first point defining our line
+        :param b: a tuple of coordinates (x, y) of the second point defining our line
+        :param c: a tuple of coordinates (x, y) of the point which position relative to the line we want to find
+
+        :return: the value of the determinant of the matrix
+        """
+
+        ax, ay = a
+        bx, by = b
+        cx, cy = c
+        return (ax - cx) * (by - cy) - (ay - cy) * (bx - cx)
+
+    @staticmethod
+    def orient(a, b, c, eps = 10 ** -12):
+        """
+        Determining the position of point c relative to line ab
+
+        :param a: a tuple of coordinates (x, y) of the first point defining our line
+        :param b: a tuple of coordinates (x, y) of the second point defining our line
+        :param c: a tuple of coordinates (x, y) of the point which position relative to the line we want to find
+        :param eps: float value defining range of values <-eps, eps> which are treated as 0
+
+        :return: 0 - the point lies on the line, 1 - the point lies to the left of the line, -1 - the point lies to the right of the line
+        """
+
+        det = Kirkpatrick.mat_det_2x2(a, b, c)
+        if abs(det) <= eps:
+            return 0
+        elif det > 0:
+            return 1
+        else:
+            return -1
+
 if __name__ == "__main__":
     import json
     import os
 
     test_dir = "test_input"
-    test_name = "test2.json"
+    test_name = "test1.json"
 
     with open(os.path.join(test_dir, test_name), 'r') as file:
         data = json.load(file)
