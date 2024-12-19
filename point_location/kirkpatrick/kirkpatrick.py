@@ -134,34 +134,24 @@ class Kirkpatrick:
             else:
                 path.append(tup)
                 edgeset -= set([tup])
-                
+
         if (len(path) != 0):
             faces.append(path)
 
         return faces
 
 if __name__ == "__main__":
-    # Define the vertices of the polygon
-    vertices = [
-        (0, 0),
-        (1, 2),
-        (2, 1),
-        (3, 3),
-        (4, 0),
-        (2, -1)
-    ]
+    import json
+    import os
 
-    # Define the segments (edges) that must be included in the triangulation
-    segments = [
-        (0, 1),  # Edge between vertex 0 and vertex 1
-        (1, 2),  # Edge between vertex 1 and vertex 2
-        (2, 3),  # Edge between vertex 2 and vertex 3
-        (3, 4),  # Edge between vertex 3 and vertex 4
-        (4, 5),  # Edge between vertex 4 and vertex 5
-        (5, 0)  # Edge between vertex 5 and vertex 0
-        , (0, 4)      # diagonal
-    ]
+    test_dir = "test_input"
+    test_name = "test2.json"
 
+    with open(os.path.join(test_dir, test_name), 'r') as file:
+        data = json.load(file)
+
+    vertices = data["vertices"]
+    segments = data["segments"]
 
     # kirkpatrick = Kirkpatrick(list(map(tuple, list(vertices))), list(map(tuple, list(segments))))
     kirkpatrick = Kirkpatrick(vertices, segments)
