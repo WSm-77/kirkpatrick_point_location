@@ -25,7 +25,7 @@ class Kirkpatrick:
         all_points_cnt = len(self.all_points)
 
         # last 3 points are points of bounding triangle
-        self.bounding_triangle_points = {self.all_points[all_points_cnt - i - 1] for i in range(3)}
+        self.bounding_triangle_points = {Point(*self.all_points[all_points_cnt - i - 1]) for i in range(3)}
 
         bounding_triangle_edges = [
             (all_points_cnt - 3, all_points_cnt - 2),
@@ -47,6 +47,24 @@ class Kirkpatrick:
         self.hierarchy_graph: dict[Triangle | int, list[Triangle] | None] = {i : None for i in range(len(self.input_faces))}
 
         self.initialize_hierarchy_graph()
+
+    def get_independent_points_set(self):
+        checked = set()
+        independent_points = set()
+
+        for point in self.planar_map.iterpoints():
+            if point in checked:
+                continue
+
+            if point not in self.bounding_triangle_points and self.planar_map.degree(point) <= 8:
+                independent_points.add(point)
+
+                for neighbour in self.planar_map.iteradjacent(point):
+                    checked.add(neighbour)
+
+            checked.add(point)
+
+        return independent_points
 
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
