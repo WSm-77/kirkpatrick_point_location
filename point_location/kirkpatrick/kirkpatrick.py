@@ -1,5 +1,6 @@
 import networkx as nx
 import triangle
+import mapbox_earcut
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
 from computational_utils.utils import orient
@@ -66,9 +67,6 @@ class Kirkpatrick:
 
         return independent_points
 
-    def remove_independent_points(self):
-        pass
-
     def get_neighbour_triangles_list(self, point, neighbours_ordered_clockwise):
         neighbour_triangles_list = []
 
@@ -87,24 +85,19 @@ class Kirkpatrick:
 
     def retriangulate_hole(self, neighbours_ordered_clockwise):
         points_cnt = len(neighbours_ordered_clockwise)
-        edges = [(i, i + 1) for i in range(points_cnt - 1)]
-        edges.append((0, points_cnt - 1))
 
         hole_points = [(point.x, point.y) for point in neighbours_ordered_clockwise]
 
-        tri_input = {
-            'vertices': hole_points,
-            'segments': edges
-        }
+        hole_indices = [points_cnt]
 
-        tri_data = triangle.triangulate(tri_input)
+        triangles = mapbox_earcut.triangulate_float64(hole_points, hole_indices)
 
-        return tri_data
+        return triangles.reshape(-1, 3)
 
     def get_triangles_from_triangulation(self, triangulation_data: dict, points_to_triangulate):
         triangles_list = []
 
-        for a, b, c in triangulation_data["triangles"]:
+        for a, b, c in triangulation_data:
             point_a = points_to_triangulate[a]
             point_b = points_to_triangulate[b]
             point_c = points_to_triangulate[c]
@@ -169,7 +162,7 @@ class Kirkpatrick:
 
                 print(f"#### triangles ####\n\n")
 
-                print(triangulation_data["triangles"])
+                print(triangulation_data)
 
                 print("\n\n")
 
