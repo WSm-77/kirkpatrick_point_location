@@ -66,6 +66,124 @@ class Kirkpatrick:
 
         return independent_points
 
+    def remove_independent_points(self):
+        pass
+
+    def get_neighbour_triangles_list(self, point, neighbours_ordered_clockwise):
+        neighbour_triangles_list = []
+
+        prev_neighbour = neighbours_ordered_clockwise[-1]
+
+        for next_neighbour in neighbours_ordered_clockwise:
+            new_triangle = Triangle(prev_neighbour, next_neighbour, point)
+            neighbour_triangles_list.append(new_triangle)
+
+            prev_neighbour = next_neighbour
+
+        return neighbour_triangles_list
+
+    def get_cmp_clockwise(self, point):
+        return lambda p1, p2: (orient((point.x, point.y), (p1.x, p1.y), (p2.x, p2.y)))
+
+    def retriangulate_hole(self, neighbours_ordered_clockwise):
+        points_cnt = len(neighbours_ordered_clockwise)
+        edges = [(i, i + 1) for i in range(points_cnt - 1)]
+        edges.append((0, points_cnt - 1))
+
+        hole_points = [(point.x, point.y) for point in neighbours_ordered_clockwise]
+
+        tri_input = {
+            'vertices': hole_points,
+            'segments': edges
+        }
+
+        tri_data = triangle.triangulate(tri_input)
+
+        return tri_data
+
+    def get_triangles_from_triangulation(self, triangulation_data: dict, points_to_triangulate):
+        triangles_list = []
+
+        for a, b, c in triangulation_data["triangles"]:
+            point_a = points_to_triangulate[a]
+            point_b = points_to_triangulate[b]
+            point_c = points_to_triangulate[c]
+
+            new_triangle = Triangle(point_a, point_b, point_c)
+
+            triangles_list.append(new_triangle)
+
+        return triangles_list
+
+    def add_missing_edges(self, new_triangles_list):
+        for triangle in new_triangles_list:
+            point_a = triangle.pt1
+            point_b = triangle.pt2
+            point_c = triangle.pt3
+
+            edge1 = Segment(point_a, point_b)
+            edge2 = Segment(point_b, point_c)
+            edge3 = Segment(point_a, point_c)
+
+            if not self.planar_map.has_edge(edge1):
+                self.planar_map.add_edge(edge1)
+
+            if not self.planar_map.has_edge(edge2):
+                self.planar_map.add_edge(edge2)
+
+            if not self.planar_map.has_edge(edge3):
+                self.planar_map.add_edge(edge3)
+
+    def preprocess(self):
+        input_points_cnt = len(self.input_points)
+
+        while input_points_cnt > 0:
+            independent_points_set = self.get_independent_points_set()
+
+            print(f"\n\n\n######### NEXT ITTERATION #########\n\n\n")
+
+
+            for independent_point in independent_points_set:
+                neighbours_ordered_clockwise = [point for point in self.planar_map.iteradjacent(independent_point)]
+                neighbours_ordered_clockwise.sort(key = cmp_to_key(self.get_cmp_clockwise(independent_point)))
+
+                neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
+
+                print(f"#### independent point ####\n\n")
+
+                print(independent_point)
+
+                print("\n\n")
+
+                print(f"#### neighbours clockwise ####\n\n")
+
+                print(list(map(lambda p: (float(p.x), float(p.y)), neighbours_ordered_clockwise)))
+
+                print("\n\n")
+
+                # print(*neighbour_triangles_list, sep="\n")
+
+                self.planar_map.del_node(independent_point)
+
+                triangulation_data = self.retriangulate_hole(neighbours_ordered_clockwise)
+
+                print(f"#### triangles ####\n\n")
+
+                print(triangulation_data["triangles"])
+
+                print("\n\n")
+
+                new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
+
+                self.add_missing_edges(new_triangles_list)
+
+
+                # break
+
+            input_points_cnt -= len(independent_points_set)
+
+            draw_planar_map(self.planar_map)        # TODO: remove (currently for testing purpose)
+
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
         planar_subdivision.add_edges_from(input_edges)
@@ -79,9 +197,9 @@ class Kirkpatrick:
         faces_sets = [{edge[0] for edge in face} for face in self.input_faces]
 
         for a, b, c in self.base_triangulation:
-            point_a = Point(*self.idx_to_point(a))
-            point_b = Point(*self.idx_to_point(b))
-            point_c = Point(*self.idx_to_point(c))
+            point_a = self.idx_to_point(a)
+            point_b = self.idx_to_point(b)
+            point_c = self.idx_to_point(c)
 
             triangle_object = Triangle(point_a, point_b, point_c)
 
@@ -110,8 +228,8 @@ class Kirkpatrick:
 
         return filtered_faces
 
-    def idx_to_point(self, idx: int) -> tuple[float, float]:
-        return self.all_points[idx]
+    def idx_to_point(self, idx: int) -> Point:
+        return Point(*self.all_points[idx])
 
     def point_to_idx(self, point: tuple[float, float]) -> int:
         return self.points_to_idx[point]
@@ -217,7 +335,7 @@ class Kirkpatrick:
         return faces
 
     def get_embedding(self, points, edges):
-        def get_cmp_clockwise(vertex):
+        def get_cmp_clockwise_for_embedding(vertex):
             return lambda v1, v2: (orient(vertex_to_point[vertex], vertex_to_point[v1], vertex_to_point[v2]))
 
         graph: dict[int, list] = {}
@@ -232,16 +350,38 @@ class Kirkpatrick:
             graph[neighbour].append(vertex)
 
         for vertex in graph.keys():
-            graph[vertex].sort(key = cmp_to_key(get_cmp_clockwise(vertex)))
+            graph[vertex].sort(key = cmp_to_key(get_cmp_clockwise_for_embedding(vertex)))
 
         return graph
+
+#### TESTING ####
+
+def draw_planar_map(planar_map):
+    fig, ax = plt.subplots()
+
+    # Rysowanie wierzchołków
+    for node in planar_map.iternodes():
+        ax.plot(node.x, node.y, 'o', color='blue')  # Wierzchołki jako niebieskie kropki
+        ax.text(node.x, node.y, f"{node.x, node.y}", fontsize=8, color='red')  # Indeksy wierzchołków
+
+    # Rysowanie krawędzi
+    for edge in planar_map.iteredges():
+        start_node = edge.source  # Początkowy wierzchołek
+        end_node = edge.target  # Końcowy wierzchołek
+        x = [start_node.x, end_node.x]
+        y = [start_node.y, end_node.y]
+        ax.plot(x, y, 'k-', linewidth=1)  # Rysowanie krawędzi jako czarna linia
+
+    ax.set_aspect('equal', adjustable='datalim')
+    plt.show()
 
 if __name__ == "__main__":
     import json
     import os
+    import matplotlib.pyplot as plt
 
     test_dir = "test_input"
-    test_name = "test1.json"
+    test_name = "test2.json"
 
     with open(os.path.join(test_dir, test_name), 'r') as file:
         data = json.load(file)
@@ -255,40 +395,7 @@ if __name__ == "__main__":
     print(kirkpatrick.bounding_triangle_points)
     print(kirkpatrick.base_triangulation)
     print(*kirkpatrick.input_faces, sep="\n")
-    planar_map = kirkpatrick.get_planar_map(kirkpatrick.triangulation_data)
 
-    # Extract triangles and plot them
-    import matplotlib.pyplot as plt
+    draw_planar_map(kirkpatrick.planar_map)
 
-    # plt.triplot([x[0] for x in kirkpatrick.all_points], [x[1] for x in kirkpatrick.all_points], kirkpatrick.base_triangulation, color='gray', alpha=0.5)
-    # plt.show()
-
-    def draw_planar_map(planar_map):
-        fig, ax = plt.subplots()
-
-        # Rysowanie wierzchołków
-        for node in planar_map.iternodes():
-            ax.plot(node.x, node.y, 'o', color='blue')  # Wierzchołki jako niebieskie kropki
-            ax.text(node.x, node.y, f"{node.x, node.y}", fontsize=8, color='red')  # Indeksy wierzchołków
-
-        # Rysowanie krawędzi
-        for edge in planar_map.iteredges():
-            start_node = edge.source  # Początkowy wierzchołek
-            end_node = edge.target  # Końcowy wierzchołek
-            x = [start_node.x, end_node.x]
-            y = [start_node.y, end_node.y]
-            ax.plot(x, y, 'k-', linewidth=1)  # Rysowanie krawędzi jako czarna linia
-
-        # 3. Rysowanie twarzy (faces)
-        # for face in planar_map.iterfaces():  # Iteracja po twarzach
-        #     face_nodes = face.nodes  # Pobranie wierzchołków twarzy
-        #     x_coords = [node.x for node in face_nodes] + [face_nodes[0].x]
-        #     y_coords = [node.y for node in face_nodes] + [face_nodes[0].y]
-        #     ax.fill(x_coords, y_coords, alpha=0.3, edgecolor='black', facecolor='green')  # Rysowanie twarzy
-
-        # Ustawienia osi
-        ax.set_aspect('equal', adjustable='datalim')
-        plt.show()
-
-    # Wywołanie funkcji
-    draw_planar_map(planar_map)
+    kirkpatrick.preprocess()
