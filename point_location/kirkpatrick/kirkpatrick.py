@@ -2,6 +2,7 @@ import networkx as nx
 import triangle
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
+from computational_utils.utils import orient
 
 class Kirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], input_edges: list[tuple[int, int]]):
@@ -24,7 +25,7 @@ class Kirkpatrick:
         all_points_cnt = len(self.all_points)
 
         # last 3 points are points of bounding triangle
-        self.bounding_triangle_points_indices_set = {all_points_cnt - i - 1 for i in range(3)}
+        self.bounding_triangle_points = {self.all_points[all_points_cnt - i - 1] for i in range(3)}
 
         bounding_triangle_edges = [
             (all_points_cnt - 3, all_points_cnt - 2),
@@ -84,7 +85,7 @@ class Kirkpatrick:
             p2 = face[1][0]
             p3 = face[2][0]
 
-            if Kirkpatrick.orient(self.input_points[p1], self.input_points[p2], self.input_points[p3]) == -1:
+            if orient(self.input_points[p1], self.input_points[p2], self.input_points[p3]) == -1:
                 continue
 
             filtered_faces.append(face)
@@ -199,7 +200,7 @@ class Kirkpatrick:
 
     def get_embedding(self, points, edges):
         def get_cmp_clockwise(vertex):
-            return lambda v1, v2: (Kirkpatrick.orient(vertex_to_point[vertex], vertex_to_point[v1], vertex_to_point[v2]))
+            return lambda v1, v2: (orient(vertex_to_point[vertex], vertex_to_point[v1], vertex_to_point[v2]))
 
         graph: dict[int, list] = {}
         vertex_to_point = {}
@@ -217,44 +218,6 @@ class Kirkpatrick:
 
         return graph
 
-    @staticmethod
-    def mat_det_2x2(a, b, c):
-        """
-        Calculating the determinant of a 2x2 matrix
-
-        :param a: a tuple of coordinates (x, y) of the first point defining our line
-        :param b: a tuple of coordinates (x, y) of the second point defining our line
-        :param c: a tuple of coordinates (x, y) of the point which position relative to the line we want to find
-
-        :return: the value of the determinant of the matrix
-        """
-
-        ax, ay = a
-        bx, by = b
-        cx, cy = c
-        return (ax - cx) * (by - cy) - (ay - cy) * (bx - cx)
-
-    @staticmethod
-    def orient(a, b, c, eps = 10 ** -12):
-        """
-        Determining the position of point c relative to line ab
-
-        :param a: a tuple of coordinates (x, y) of the first point defining our line
-        :param b: a tuple of coordinates (x, y) of the second point defining our line
-        :param c: a tuple of coordinates (x, y) of the point which position relative to the line we want to find
-        :param eps: float value defining range of values <-eps, eps> which are treated as 0
-
-        :return: 0 - the point lies on the line, 1 - the point lies to the left of the line, -1 - the point lies to the right of the line
-        """
-
-        det = Kirkpatrick.mat_det_2x2(a, b, c)
-        if abs(det) <= eps:
-            return 0
-        elif det > 0:
-            return 1
-        else:
-            return -1
-
 if __name__ == "__main__":
     import json
     import os
@@ -271,7 +234,7 @@ if __name__ == "__main__":
     # kirkpatrick = Kirkpatrick(list(map(tuple, list(vertices))), list(map(tuple, list(segments))))
     kirkpatrick = Kirkpatrick(vertices, segments)
     print(kirkpatrick.all_points)
-    print(kirkpatrick.bounding_triangle_points_indices_set)
+    print(kirkpatrick.bounding_triangle_points)
     print(kirkpatrick.base_triangulation)
     print(*kirkpatrick.input_faces, sep="\n")
     planar_map = kirkpatrick.get_planar_map(kirkpatrick.triangulation_data)
