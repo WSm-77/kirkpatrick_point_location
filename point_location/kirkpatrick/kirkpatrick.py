@@ -86,7 +86,7 @@ class Kirkpatrick:
         for next_neighbour in neighbours_ordered_clockwise:
             new_triangle = Triangle(prev_neighbour, next_neighbour, point)
             # new_triangle = My_Triangle(prev_neighbour, next_neighbour, point, id=unique_chars.pop(0))
-            # Problem -> tworzymy nowy trójkąt, a nie referencje do istniejącego
+
             # for triangle in self.hierarchy_graph.keys():
             #     if isinstance(triangle, My_Triangle) and triangle == new_triangle:
             #         new_triangle = triangle
@@ -171,12 +171,16 @@ class Kirkpatrick:
 
         triangle_containing_point = top_of_dag
         
-        while not isinstance(triangle_containing_point, int) and triangle_containing_point is not None:
+        while True:
+            flag = False
             for child in self.hierarchy_graph[triangle_containing_point]:
-                if isinstance(child, int): return child
+                if isinstance(child, tuple): return child
+                # if isinstance(child, tuple): return self.face_to_points(child[1])
                 if child.__contains__(point):
                     triangle_containing_point = child
+                    flag = True
                     break
+            if not flag: break
 
         return None
 
@@ -241,7 +245,7 @@ class Kirkpatrick:
             raise ValueError("This subdivision is not planar!!!")
 
     def initialize_hierarchy_graph(self):
-        faces_sets = [{edge[0] for edge in face} for face in self.input_faces]
+        faces_sets = [({edge[0] for edge in face}, face) for face in self.input_faces]
 
         for a, b, c in self.base_triangulation:
             point_a = self.idx_to_point(a)
@@ -255,10 +259,11 @@ class Kirkpatrick:
                 self.hierarchy_graph[triangle_object] = []
                 self.all_triangles.append(triangle_object) # do usunięcia
 
-            for face_idx, face_set in enumerate(faces_sets):
+            for face_idx, face in enumerate(faces_sets):
+                face_set, face_raw = face
                 # check if current triangle is included in current face
                 if (a in face_set) and (b in face_set) and (c in face_set):
-                    self.hierarchy_graph[triangle_object].append(face_idx)
+                    self.hierarchy_graph[triangle_object].append((face_idx, face_raw))
                     # this triangle can be included only by one face, so we can break
                     break
 
@@ -282,6 +287,15 @@ class Kirkpatrick:
 
     def point_to_idx(self, point: tuple[float, float]) -> int:
         return self.points_to_idx[point]
+    
+    def face_to_points(self, face:list[tuple[int,int]]):
+        result = set()
+        for idx_1, idx_2 in face:
+            result.add(self.idx_to_point(idx_1))
+            result.add(self.idx_to_point(idx_2))
+        result = list(result)
+        result.sort(key = cmp_to_key(self.get_cmp_clockwise(result[0]))) # problem <- układ punktów jest zły, bo nie jest sortowny od wewnątrz ściany
+        return result
 
     def get_bounding_triangle(self, input_points: list[tuple[float, float]]) -> list[tuple[float, float]]:
 
@@ -425,12 +439,29 @@ def draw_planar_map(planar_map):
     ax.set_aspect('equal', adjustable='datalim')
     plt.show()
 
+def draw_initial_faces(vertices, edges):
+    plt.figure()
+    
+    # Draw edges
+    for edge in edges:
+        start = vertices[edge[0]]
+        end = vertices[edge[1]]
+        plt.plot([start[0], end[0]], [start[1], end[1]], 'k-')  # Draw edge
+    
+    # Draw vertices
+    for vertex in vertices:
+        plt.plot(vertex[0], vertex[1], 'ro')  # Draw vertex
+    
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.grid()
+    plt.show()
+
 if __name__ == "__main__":
     import json
     import os
     import matplotlib.pyplot as plt
 
-    test_no = 3
+    test_no = 1
     test_dir = "point_location/kirkpatrick/test_input"
     test_name = f"test{test_no}.json"
 
@@ -446,11 +477,22 @@ if __name__ == "__main__":
     # print(kirkpatrick.bounding_triangle_points)
     # print(kirkpatrick.base_triangulation)
     # print(*kirkpatrick.input_faces, sep="\n")
-
-    print(kirkpatrick.input_faces)
+    draw_initial_faces(vertices,segments)
     draw_planar_map(kirkpatrick.planar_map)
 
     kirkpatrick.preprocess()
+    
+    if test_no == 1:
+        # TEST 1
+        points_A = data["points_A"]
+        for point in points_A:
+            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+
+    if test_no == 2:
+        # TEST 2
+        points_A = data["points_A"]
+        for point in points_A:
+            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
 
     if test_no == 3:
         # TEST 3
@@ -460,8 +502,24 @@ if __name__ == "__main__":
         # points that should be in the second face (test 3)
         points_B = data["points_B"]
 
-        for point in points_A:
-            print(kirkpatrick.locate_point(point))
+        # points that are outside of input faces
+        points_outside = data["points_outside"]
 
+        # points on the edge
+        edge_points = data["edge_points"]
+
+        print("TESTING POINTS IN FIRST FACE")
+        for point in points_A:
+            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+
+        print("\nTESTING POINTS IN SECOND FACE")
         for point in points_B:
-            print(kirkpatrick.locate_point(point))
+            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+
+        print("\nTESTING POINTS OUTSIDE")
+        for point in points_outside:
+            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+        
+        print("\nTESTING EDGE POINTS")
+        for point in edge_points:
+            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
