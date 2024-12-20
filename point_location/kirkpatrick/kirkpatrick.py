@@ -5,6 +5,16 @@ from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Trian
 from functools import cmp_to_key
 from computational_utils.utils import orient
 
+from computational_utils.char_generator import unique_chars
+
+class My_Triangle(Triangle):
+    def __init__(self, *arguments, id):
+        super().__init__(*arguments)
+        self.id = id
+
+    def __repr__(self):
+        return f"{self.id}"
+
 class Kirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], input_edges: list[tuple[int, int]]):
         # verify graph planarity
@@ -20,6 +30,7 @@ class Kirkpatrick:
         self.bounding_triangle = self.get_bounding_triangle(input_points)
 
         self.all_points = self.input_points + self.bounding_triangle
+        self.all_triangles = [] # do usunięcia
 
         self.points_to_idx = {tuple(point) : idx for idx, point in enumerate(self.all_points)}
 
@@ -74,7 +85,15 @@ class Kirkpatrick:
 
         for next_neighbour in neighbours_ordered_clockwise:
             new_triangle = Triangle(prev_neighbour, next_neighbour, point)
+            # new_triangle = My_Triangle(prev_neighbour, next_neighbour, point, id=unique_chars.pop(0))
+            # Problem -> tworzymy nowy trójkąt, a nie referencje do istniejącego
+            # for triangle in self.hierarchy_graph.keys():
+            #     if isinstance(triangle, My_Triangle) and triangle == new_triangle:
+            #         new_triangle = triangle
+            #         break
             neighbour_triangles_list.append(new_triangle)
+            self.all_triangles.append(new_triangle) # do usunięcia
+
 
             prev_neighbour = next_neighbour
 
@@ -103,8 +122,10 @@ class Kirkpatrick:
             point_c = points_to_triangulate[c]
 
             new_triangle = Triangle(point_a, point_b, point_c)
+            # new_triangle = My_Triangle(point_a, point_b, point_c, id=unique_chars.pop(0))
 
             triangles_list.append(new_triangle)
+            self.all_triangles.append(new_triangle) # do usunięcia
 
         return triangles_list
 
@@ -127,13 +148,45 @@ class Kirkpatrick:
             if not self.planar_map.has_edge(edge3):
                 self.planar_map.add_edge(edge3)
 
+    def process_hierarchy_of_triangles(self,prev_triangles: list[Triangle], new_triangles: list[Triangle]) -> None:
+
+        def triangles_intersect(triangle_A:Triangle, triangle_B:Triangle) -> bool:
+            for segment_A in triangle_A.itersegments():
+                for segment_B in triangle_B.itersegments():
+                    if segment_A.intersect(segment_B): return True
+            return False
+
+        for new_triangle in new_triangles:
+            for prev_triangle in prev_triangles:
+                if triangles_intersect(new_triangle, prev_triangle):
+                    if new_triangle not in self.hierarchy_graph: self.hierarchy_graph[new_triangle] = []
+                    self.hierarchy_graph[new_triangle].append(prev_triangle)
+
+    def locate_point(self, point) -> int:
+        if not isinstance(point, Point): point = Point(*point)
+
+        top_of_dag = list(self.hierarchy_graph.keys())[-1]
+        if not top_of_dag.__contains__(point):
+            return #point is in exterior face
+
+        triangle_containing_point = top_of_dag
+        
+        while not isinstance(triangle_containing_point, int) and triangle_containing_point is not None:
+            for child in self.hierarchy_graph[triangle_containing_point]:
+                if isinstance(child, int): return child
+                if child.__contains__(point):
+                    triangle_containing_point = child
+                    break
+
+        return None
+
     def preprocess(self):
         input_points_cnt = len(self.input_points)
 
         while input_points_cnt > 0:
             independent_points_set = self.get_independent_points_set()
 
-            print(f"\n\n\n######### NEXT ITTERATION #########\n\n\n")
+            # print(f"\n\n\n######### NEXT ITTERATION #########\n\n\n")
 
 
             for independent_point in independent_points_set:
@@ -142,17 +195,17 @@ class Kirkpatrick:
 
                 neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
 
-                print(f"#### independent point ####\n\n")
+                # print(f"#### independent point ####\n\n")
 
-                print(independent_point)
+                # print(independent_point)
 
-                print("\n\n")
+                # print("\n\n")
 
-                print(f"#### neighbours clockwise ####\n\n")
+                # print(f"#### neighbours clockwise ####\n\n")
 
-                print(list(map(lambda p: (float(p.x), float(p.y)), neighbours_ordered_clockwise)))
+                # print(list(map(lambda p: (float(p.x), float(p.y)), neighbours_ordered_clockwise)))
 
-                print("\n\n")
+                # print("\n\n")
 
                 # print(*neighbour_triangles_list, sep="\n")
 
@@ -160,22 +213,23 @@ class Kirkpatrick:
 
                 triangulation_data = self.retriangulate_hole(neighbours_ordered_clockwise)
 
-                print(f"#### triangles ####\n\n")
+                # print(f"#### triangles ####\n\n")
 
-                print(triangulation_data)
+                # print(triangulation_data)
 
-                print("\n\n")
+                # print("\n\n")
 
                 new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
 
                 self.add_missing_edges(new_triangles_list)
-
+                
+                self.process_hierarchy_of_triangles(neighbour_triangles_list, new_triangles_list)
 
                 # break
 
             input_points_cnt -= len(independent_points_set)
 
-            draw_planar_map(self.planar_map)        # TODO: remove (currently for testing purpose)
+            # draw_planar_map(self.planar_map)        # TODO: remove (currently for testing purpose)
 
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
@@ -195,9 +249,11 @@ class Kirkpatrick:
             point_c = self.idx_to_point(c)
 
             triangle_object = Triangle(point_a, point_b, point_c)
+            # triangle_object = My_Triangle(point_a, point_b, point_c, id=unique_chars.pop(0))
 
             if triangle_object not in self.hierarchy_graph:
                 self.hierarchy_graph[triangle_object] = []
+                self.all_triangles.append(triangle_object) # do usunięcia
 
             for face_idx, face_set in enumerate(faces_sets):
                 # check if current triangle is included in current face
@@ -347,6 +403,7 @@ class Kirkpatrick:
 
         return graph
 
+
 #### TESTING ####
 
 def draw_planar_map(planar_map):
@@ -373,8 +430,9 @@ if __name__ == "__main__":
     import os
     import matplotlib.pyplot as plt
 
-    test_dir = "test_input"
-    test_name = "test2.json"
+    test_no = 3
+    test_dir = "point_location/kirkpatrick/test_input"
+    test_name = f"test{test_no}.json"
 
     with open(os.path.join(test_dir, test_name), 'r') as file:
         data = json.load(file)
@@ -384,11 +442,26 @@ if __name__ == "__main__":
 
     # kirkpatrick = Kirkpatrick(list(map(tuple, list(vertices))), list(map(tuple, list(segments))))
     kirkpatrick = Kirkpatrick(vertices, segments)
-    print(kirkpatrick.all_points)
-    print(kirkpatrick.bounding_triangle_points)
-    print(kirkpatrick.base_triangulation)
-    print(*kirkpatrick.input_faces, sep="\n")
+    # print(kirkpatrick.all_points)
+    # print(kirkpatrick.bounding_triangle_points)
+    # print(kirkpatrick.base_triangulation)
+    # print(*kirkpatrick.input_faces, sep="\n")
 
+    print(kirkpatrick.input_faces)
     draw_planar_map(kirkpatrick.planar_map)
 
     kirkpatrick.preprocess()
+
+    if test_no == 3:
+        # TEST 3
+        # points that should be in first face (test 3)
+        points_A = data["points_A"]
+
+        # points that should be in the second face (test 3)
+        points_B = data["points_B"]
+
+        for point in points_A:
+            print(kirkpatrick.locate_point(point))
+
+        for point in points_B:
+            print(kirkpatrick.locate_point(point))
