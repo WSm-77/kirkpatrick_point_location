@@ -55,11 +55,19 @@ class VisualKirkpatrick:
 
         self.triangles_to_faces_map = {}
 
+        self.triangulation_level = 0
+
         self.initialize_hierarchy_graph_and_faces_map()
 
         self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("perform triangulation"))
+        self.triangulation_levels_vis = [self.planar_map_to_visualization_step()]
 
-    def planar_map_to_visualization_step(self, step_title: str) -> Visualizer:
+    def visual_preprocessing(self):
+        self.preprocess()
+        for vis in self.preprocessing_visualization_seteps:
+            vis.show()
+
+    def planar_map_to_visualization_step(self, step_title: str = "") -> Visualizer:
         vis = Visualizer()
 
         points = []
@@ -75,7 +83,9 @@ class VisualKirkpatrick:
             edge = ((point1_object.x, point1_object.y), (point2_object.x, point2_object.y))
             edges.append(edge)
 
-        vis.add_title(step_title)
+        if step_title:
+            vis.add_title(step_title)
+
         vis.add_point(points)
         vis.add_line_segment(edges)
 
@@ -170,10 +180,12 @@ class VisualKirkpatrick:
         for new_triangle in new_triangles:
             for prev_triangle in prev_triangles:
                 if triangles_intersect(new_triangle, prev_triangle):
-                    if new_triangle not in self.hierarchy_graph: self.hierarchy_graph[new_triangle] = []
-                    self.hierarchy_graph[new_triangle].append(prev_triangle)
+                    new_triangle_tuple = (new_triangle, self.triangulation_level)
+                    if new_triangle_tuple not in self.hierarchy_graph:
+                        self.hierarchy_graph[new_triangle_tuple] = []
+                    self.hierarchy_graph[new_triangle_tuple].append(prev_triangle)
 
-    def locate_point(self, point) -> int:
+    def visual_locate_point(self, point) -> int:
         if not isinstance(point, Point):
             point = Point(*point)
 
@@ -184,13 +196,20 @@ class VisualKirkpatrick:
             return None
 
         triangle_containing_point = bounding_tringle
+        triangle_level_tuple = (triangle_containing_point, self.triangulation_level)
 
-        # while current graph element has children
-        while self.hierarchy_graph[triangle_containing_point]:
-            for child in self.hierarchy_graph[triangle_containing_point]:
+        for triangulation_level_vis in reversed(self.triangulation_levels_vis):
+            triangle_containing_point, traingulation_level = triangle_level_tuple
+            if triangle_level_tuple not in self.hierarchy_graph:
+                triangle_level_tuple = (triangle_containing_point, traingulation_level - 1)
+                continue
+
+            for child in self.hierarchy_graph[triangle_level_tuple]:
                 if point in child:
-                    triangle_containing_point = child
+                    triangle_level_tuple = (child, traingulation_level - 1)
                     break
+
+        triangle_containing_point = triangle_level_tuple[0]
 
         if triangle_containing_point in self.triangles_to_faces_map:
             return self.face_to_points(self.triangles_to_faces_map[triangle_containing_point])
@@ -201,6 +220,8 @@ class VisualKirkpatrick:
         input_points_cnt = len(self.input_points)
 
         while input_points_cnt > 0:
+            self.triangulation_level += 1
+
             independent_points_set = self.get_independent_points_set()
 
             preprocess_step_vis = self.planar_map_to_visualization_step("locate independent points")
@@ -234,6 +255,8 @@ class VisualKirkpatrick:
 
             self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("retriangulate holes"))
 
+            self.triangulation_levels_vis.append(self.planar_map_to_visualization_step())
+
             input_points_cnt -= len(independent_points_set)
 
     def assert_planarity(self, input_edges):
@@ -254,9 +277,10 @@ class VisualKirkpatrick:
             point_c = self.idx_to_point(c)
 
             triangle_object = Triangle(point_a, point_b, point_c)
+            triangle_level = (triangle_object, self.triangulation_level)
 
-            if triangle_object not in self.hierarchy_graph:
-                self.hierarchy_graph[triangle_object] = []
+            if triangle_level not in self.hierarchy_graph:
+                self.hierarchy_graph[triangle_level] = []
 
             for face_idx, face_set in enumerate(faces_sets):
                 # check if current triangle is included in current face
@@ -457,7 +481,7 @@ if __name__ == "__main__":
 
     kirkpatrick = VisualKirkpatrick(vertices, segments)
 
-    draw_initial_faces(vertices,segments)
+    # draw_initial_faces(vertices,segments)
     draw_planar_map(kirkpatrick.planar_map)
 
     kirkpatrick.preprocess()
@@ -466,13 +490,14 @@ if __name__ == "__main__":
         # TEST 1
         points_A = data["points_A"]
         for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
 
     if test_no == 2:
         # TEST 2
         points_A = data["points_A"]
         for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
+            # break
 
     if test_no == 3:
         # TEST 3
@@ -490,20 +515,20 @@ if __name__ == "__main__":
 
         print("TESTING POINTS IN FIRST FACE")
         for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
 
         print("\nTESTING POINTS IN SECOND FACE")
         for point in points_B:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
 
         print("\nTESTING POINTS OUTSIDE")
         for point in points_outside:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
 
         print("\nTESTING EDGE POINTS")
         for point in edge_points:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
 
-    for vis in kirkpatrick.preprocessing_visualization_seteps:
-        vis.show()
-        input()
+    # for vis in kirkpatrick.preprocessing_visualization_seteps:
+    #     vis.show()
+    #     input()
