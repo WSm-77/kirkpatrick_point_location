@@ -195,26 +195,58 @@ class VisualKirkpatrick:
         if point not in bounding_tringle:
             return None
 
+        vis_objects_list = []
+
         triangle_containing_point = bounding_tringle
         triangle_level_tuple = (triangle_containing_point, self.triangulation_level)
 
-        for triangulation_level_vis in reversed(self.triangulation_levels_vis):
-            triangle_containing_point, traingulation_level = triangle_level_tuple
+        for idx, triangulation_level_vis in enumerate(reversed(self.triangulation_levels_vis)):
+            vis_objects_list.append([])
+
+            triangle_containing_point, triangulation_level = triangle_level_tuple
+
+            triangle_points = [(point_object.x, point_object.y) for point_object in triangle_containing_point.iterpoints()]
+
+            polygon_vis = triangulation_level_vis.add_polygon(triangle_points, color = "green", alpha = 0.6)
+            point_vis = triangulation_level_vis.add_point((point.x, point.y))
+
+            vis_objects_list[idx].append(polygon_vis)
+            vis_objects_list[idx].append(point_vis)
+
             if triangle_level_tuple not in self.hierarchy_graph:
-                triangle_level_tuple = (triangle_containing_point, traingulation_level - 1)
+                triangle_level_tuple = (triangle_containing_point, triangulation_level - 1)
                 continue
 
             for child in self.hierarchy_graph[triangle_level_tuple]:
                 if point in child:
-                    triangle_level_tuple = (child, traingulation_level - 1)
+                    triangle_level_tuple = (child, triangulation_level - 1)
                     break
 
         triangle_containing_point = triangle_level_tuple[0]
 
+        face = None
+
         if triangle_containing_point in self.triangles_to_faces_map:
-            return self.face_to_points(self.triangles_to_faces_map[triangle_containing_point])
-        else:
-            return None
+            face = self.face_to_points(self.triangles_to_faces_map[triangle_containing_point])
+
+        for vis, to_remove_list in zip(reversed(self.triangulation_levels_vis), vis_objects_list):
+            vis.show()
+            for to_remove in to_remove_list:
+                vis.remove_figure(to_remove)
+
+        input_vis_to_remove = []
+
+        input_vis_to_remove.append(self.input_vis.add_point((point.x, point.y)))
+
+        if face:
+            input_vis_to_remove.append(self.input_vis.add_polygon(face, color = "green", alpha = 0.6))
+
+        self.input_vis.show()
+
+        for to_remove in input_vis_to_remove:
+            self.input_vis.remove_figure(to_remove)
+
+        return face
 
     def preprocess(self):
         input_points_cnt = len(self.input_points)
@@ -497,6 +529,7 @@ if __name__ == "__main__":
         points_A = data["points_A"]
         for point in points_A:
             print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
+            input()
             # break
 
     if test_no == 3:
