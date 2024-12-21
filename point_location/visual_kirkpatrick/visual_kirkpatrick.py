@@ -4,6 +4,7 @@ import mapbox_earcut
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
 from computational_utils.utils import orient
+from bit_algo_vis_tool.visualizer.visualizer import Visualizer
 
 class VisualKirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], input_edges: list[tuple[int, int]]):
@@ -12,6 +13,13 @@ class VisualKirkpatrick:
 
         self.input_points = input_points
         self.input_edges = input_edges
+
+        self.input_vis = Visualizer()
+        self.input_vis.add_title("given planar subdivision")
+        self.input_vis.add_point(input_points)
+        self.input_vis.add_line_segment([(self.input_points[point1_idx], self.input_points[point2_idx]) for point1_idx, point2_idx in input_edges])
+
+        self.preprocessing_visualization_seteps = [self.input_vis]
 
         embedding = self.get_embedding(input_points, input_edges)
 
@@ -48,6 +56,30 @@ class VisualKirkpatrick:
         self.triangles_to_faces_map = {}
 
         self.initialize_hierarchy_graph_and_faces_map()
+
+        self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("perform triangulation"))
+
+    def planar_map_to_visualization_step(self, step_title: str) -> Visualizer:
+        vis = Visualizer()
+
+        points = []
+        for point_object in self.planar_map.iterpoints():
+            point = (point_object.x, point_object.y)
+            points.append(point)
+
+        edges = []
+        for edge_object in self.planar_map.iteredges():
+            point1_object = edge_object.source
+            point2_object = edge_object.target
+
+            edge = ((point1_object.x, point1_object.y), (point2_object.x, point2_object.y))
+            edges.append(edge)
+
+        vis.add_title(step_title)
+        vis.add_point(points)
+        vis.add_line_segment(edges)
+
+        return vis
 
     def get_independent_points_set(self):
         checked = set()
@@ -171,11 +203,20 @@ class VisualKirkpatrick:
         while input_points_cnt > 0:
             independent_points_set = self.get_independent_points_set()
 
+            preprocess_step_vis = self.planar_map_to_visualization_step("locate independent points")
+            preprocess_step_vis.add_point([(point_object.x, point_object.y) for point_object in independent_points_set], color="red")
+            self.preprocessing_visualization_seteps.append(preprocess_step_vis)
+
+            list_of_neighbour_triangles_list = []
+            list_of_new_triangles_list = []
+
             for independent_point in independent_points_set:
                 neighbours_ordered_clockwise = [point for point in self.planar_map.iteradjacent(independent_point)]
                 neighbours_ordered_clockwise.sort(key = cmp_to_key(self.get_cmp_clockwise(independent_point)))
 
                 neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
+
+                list_of_neighbour_triangles_list.append(neighbour_triangles_list)
 
                 self.planar_map.del_node(independent_point)
 
@@ -183,9 +224,15 @@ class VisualKirkpatrick:
 
                 new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
 
-                self.add_missing_edges(new_triangles_list)
+                list_of_new_triangles_list.append(new_triangles_list)
 
+            self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("delete independent points"))
+
+            for neighbour_triangles_list, new_triangles_list in zip(list_of_neighbour_triangles_list, list_of_new_triangles_list):
+                self.add_missing_edges(new_triangles_list)
                 self.process_hierarchy_of_triangles(neighbour_triangles_list, new_triangles_list)
+
+            self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("retriangulate holes"))
 
             input_points_cnt -= len(independent_points_set)
 
@@ -456,3 +503,7 @@ if __name__ == "__main__":
         print("\nTESTING EDGE POINTS")
         for point in edge_points:
             print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
+
+    for vis in kirkpatrick.preprocessing_visualization_seteps:
+        vis.show()
+        input()
