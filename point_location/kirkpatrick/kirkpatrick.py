@@ -5,16 +5,6 @@ from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Trian
 from functools import cmp_to_key
 from computational_utils.utils import orient
 
-from computational_utils.char_generator import unique_chars
-
-class My_Triangle(Triangle):
-    def __init__(self, *arguments, id):
-        super().__init__(*arguments)
-        self.id = id
-
-    def __repr__(self):
-        return f"{self.id}"
-
 class Kirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], input_edges: list[tuple[int, int]]):
         # verify graph planarity
@@ -30,9 +20,6 @@ class Kirkpatrick:
         self.bounding_triangle = self.get_bounding_triangle(input_points)
 
         self.all_points = self.input_points + self.bounding_triangle
-        self.all_triangles = [] # do usunięcia
-
-        self.points_to_idx = {tuple(point) : idx for idx, point in enumerate(self.all_points)}
 
         all_points_cnt = len(self.all_points)
 
@@ -87,15 +74,7 @@ class Kirkpatrick:
 
         for next_neighbour in neighbours_ordered_clockwise:
             new_triangle = Triangle(prev_neighbour, next_neighbour, point)
-            # new_triangle = My_Triangle(prev_neighbour, next_neighbour, point, id=unique_chars.pop(0))
-
-            # for triangle in self.hierarchy_graph.keys():
-            #     if isinstance(triangle, My_Triangle) and triangle == new_triangle:
-            #         new_triangle = triangle
-            #         break
             neighbour_triangles_list.append(new_triangle)
-            self.all_triangles.append(new_triangle) # do usunięcia
-
 
             prev_neighbour = next_neighbour
 
@@ -124,10 +103,8 @@ class Kirkpatrick:
             point_c = points_to_triangulate[c]
 
             new_triangle = Triangle(point_a, point_b, point_c)
-            # new_triangle = My_Triangle(point_a, point_b, point_c, id=unique_chars.pop(0))
 
             triangles_list.append(new_triangle)
-            self.all_triangles.append(new_triangle) # do usunięcia
 
         return triangles_list
 
@@ -194,38 +171,15 @@ class Kirkpatrick:
         while input_points_cnt > 0:
             independent_points_set = self.get_independent_points_set()
 
-            # print(f"\n\n\n######### NEXT ITTERATION #########\n\n\n")
-
-
             for independent_point in independent_points_set:
                 neighbours_ordered_clockwise = [point for point in self.planar_map.iteradjacent(independent_point)]
                 neighbours_ordered_clockwise.sort(key = cmp_to_key(self.get_cmp_clockwise(independent_point)))
 
                 neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
 
-                # print(f"#### independent point ####\n\n")
-
-                # print(independent_point)
-
-                # print("\n\n")
-
-                # print(f"#### neighbours clockwise ####\n\n")
-
-                # print(list(map(lambda p: (float(p.x), float(p.y)), neighbours_ordered_clockwise)))
-
-                # print("\n\n")
-
-                # print(*neighbour_triangles_list, sep="\n")
-
                 self.planar_map.del_node(independent_point)
 
                 triangulation_data = self.retriangulate_hole(neighbours_ordered_clockwise)
-
-                # print(f"#### triangles ####\n\n")
-
-                # print(triangulation_data)
-
-                # print("\n\n")
 
                 new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
 
@@ -233,11 +187,7 @@ class Kirkpatrick:
 
                 self.process_hierarchy_of_triangles(neighbour_triangles_list, new_triangles_list)
 
-                # break
-
             input_points_cnt -= len(independent_points_set)
-
-            # draw_planar_map(self.planar_map)        # TODO: remove (currently for testing purpose)
 
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
@@ -257,7 +207,6 @@ class Kirkpatrick:
             point_c = self.idx_to_point(c)
 
             triangle_object = Triangle(point_a, point_b, point_c)
-            # triangle_object = My_Triangle(point_a, point_b, point_c, id=unique_chars.pop(0))
 
             if triangle_object not in self.hierarchy_graph:
                 self.hierarchy_graph[triangle_object] = []
@@ -287,9 +236,6 @@ class Kirkpatrick:
     def idx_to_point(self, idx: int) -> Point:
         return Point(*self.all_points[idx])
 
-    def point_to_idx(self, point: tuple[float, float]) -> int:
-        return self.points_to_idx[point]
-
     def face_to_points(self, face_idx: int) -> list[tuple[float, float]]:
         result = []
         for idx, _ in self.input_faces[face_idx]:
@@ -313,14 +259,6 @@ class Kirkpatrick:
         xmin, ymin, xmax, ymax = find_extremes(input_points)
         x = xmax - xmin
         y = ymax - ymin
-
-        # Defining points for triangle with no spacing - minimal triangle
-        # a = (x*y/2) ** (1/2)
-        # points = [
-        #     (xmin - a, ymin),  # BIG triangle
-        #     (xmax + a, ymin),   # BIG triangle
-        #     ((xmin + xmax)/2, ymax + a)     # BIG triangle
-        # ]
 
         # Defining points for triangle with space
         a = (x*y/2 + x + y + 2) ** (1/2)
@@ -417,7 +355,6 @@ class Kirkpatrick:
 
         return graph
 
-
 #### TESTING ####
 
 def draw_planar_map(planar_map):
@@ -471,12 +408,8 @@ if __name__ == "__main__":
     vertices = data["vertices"]
     segments = data["segments"]
 
-    # kirkpatrick = Kirkpatrick(list(map(tuple, list(vertices))), list(map(tuple, list(segments))))
     kirkpatrick = Kirkpatrick(vertices, segments)
-    # print(kirkpatrick.all_points)
-    # print(kirkpatrick.bounding_triangle_points)
-    # print(kirkpatrick.base_triangulation)
-    # print(*kirkpatrick.input_faces, sep="\n")
+
     draw_initial_faces(vertices,segments)
     draw_planar_map(kirkpatrick.planar_map)
 
