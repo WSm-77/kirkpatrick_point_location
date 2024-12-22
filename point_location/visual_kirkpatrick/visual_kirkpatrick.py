@@ -1,6 +1,7 @@
 import networkx as nx
 import triangle
 import mapbox_earcut
+import numpy as np
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
 from computational_utils.utils import orient
@@ -122,8 +123,37 @@ class VisualKirkpatrick:
 
         return neighbour_triangles_list
 
-    def get_cmp_clockwise(self, point):
-        return lambda p1, p2: (orient((point.x, point.y), (p1.x, p1.y), (p2.x, p2.y)))
+    def get_cmp_clockwise(self, point: Point):
+        def cmp_two_ponits(p1: Point, p2: Point):
+            nonlocal point
+            vec1 = (p1.x - point.x, p1.y - point.y)
+            dx1, dy1 = vec1
+            vec2 = (p2.x - point.x, p2.y - point.y)
+            dx2, dy2 = vec2
+
+            if p1.y >= point.y and p2.y < point.y:
+                return 1
+            if p1.y < point.y and p2.y >= point.y:
+                return -1
+
+            cos1 = dx1 / np.sqrt(dx1 ** 2 + dy1 ** 2)
+            cos2 = dx2 / np.sqrt(dx2 ** 2 + dy2 ** 2)
+
+            if cos1 == cos2:
+                return 0
+
+            if p1.y < point.y:
+                if cos1 > cos2:
+                    return -1
+                else:
+                    return 1
+            else:
+                if cos1 > cos2:
+                    return 1
+                else:
+                    return -1
+
+        return cmp_two_ponits
 
     def retriangulate_hole(self, neighbours_ordered_clockwise):
         points_cnt = len(neighbours_ordered_clockwise)
@@ -252,6 +282,7 @@ class VisualKirkpatrick:
         input_points_cnt = len(self.input_points)
 
         while input_points_cnt > 0:
+            # print(f"\n\n\n######### NEXT ITTERATION #########\n\n\n")
             self.triangulation_level += 1
 
             independent_points_set = self.get_independent_points_set()
@@ -264,8 +295,15 @@ class VisualKirkpatrick:
             list_of_new_triangles_list = []
 
             for independent_point in independent_points_set:
+                # print(f"#### independent point ####\n\n")
+                # print(independent_point)
+                # print("\n\n")
                 neighbours_ordered_clockwise = [point for point in self.planar_map.iteradjacent(independent_point)]
                 neighbours_ordered_clockwise.sort(key = cmp_to_key(self.get_cmp_clockwise(independent_point)))
+
+                # print(f"#### neighbours clockwise ####\n\n")
+                # print(list(map(lambda p: (float(p.x), float(p.y)), neighbours_ordered_clockwise)))
+                # print("\n\n")
 
                 neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
 
@@ -274,6 +312,12 @@ class VisualKirkpatrick:
                 self.planar_map.del_node(independent_point)
 
                 triangulation_data = self.retriangulate_hole(neighbours_ordered_clockwise)
+
+                # print(f"#### triangles ####\n\n")
+                # print(triangulation_data)
+                # print("\n\n")
+
+                # input()
 
                 new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
 
@@ -290,6 +334,8 @@ class VisualKirkpatrick:
             self.triangulation_levels_vis.append(self.planar_map_to_visualization_step())
 
             input_points_cnt -= len(independent_points_set)
+
+            # draw_planar_map(self.planar_map)
 
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
@@ -466,7 +512,7 @@ def draw_planar_map(planar_map):
     # Rysowanie wierzchołków
     for node in planar_map.iternodes():
         ax.plot(node.x, node.y, 'o', color='blue')  # Wierzchołki jako niebieskie kropki
-        ax.text(node.x, node.y, f"{node.x, node.y}", fontsize=8, color='red')  # Indeksy wierzchołków
+        ax.text(node.x, node.y, f"{round(float(node.x), 1), round(float(node.y), 1)}", fontsize=8, color='red')  # Indeksy wierzchołków
 
     # Rysowanie krawędzi
     for edge in planar_map.iteredges():
@@ -501,12 +547,41 @@ if __name__ == "__main__":
     import os
     import matplotlib.pyplot as plt
 
-    test_no = 2
-    test_dir = "../kirkpatrick/test_input"
+    test_no = 4
+    test_dir = "../../test_input"
     test_name = f"test{test_no}.json"
 
-    with open(os.path.join(test_dir, test_name), 'r') as file:
-        data = json.load(file)
+    # with open(os.path.join(test_dir, test_name), 'r') as file:
+    #     data = json.load(file)
+
+    data = {
+    "vertices" : [
+        [-5.161290322580646, 6.082251082251084],
+        [1.5322580645161281, 7.813852813852815],
+        [3.991935483870968, 1.0497835497835517],
+        [-2.983870967741936, -1.6558441558441555],
+        [-6.693548387096775, 1.1038961038961048],
+        [-3.145161290322582, 3.322510822510825],
+        [0.12096774193548221, 3.322510822510825]
+    ],
+
+    "segments" : [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+        [0, 4],
+        [4, 5],
+        [3, 6],
+        [6, 5],
+        [2, 6],
+        [5, 1]
+    ],
+
+    "points_A" : [
+        [-4, 5]
+    ]
+    }
 
     vertices = data["vertices"]
     segments = data["segments"]
@@ -516,7 +591,9 @@ if __name__ == "__main__":
     # draw_initial_faces(vertices,segments)
     draw_planar_map(kirkpatrick.planar_map)
 
-    kirkpatrick.preprocess()
+    # kirkpatrick.preprocess()
+    # kirkpatrick.visual_preprocessing()
+    # input()
 
     if test_no == 1:
         # TEST 1
@@ -561,6 +638,14 @@ if __name__ == "__main__":
         print("\nTESTING EDGE POINTS")
         for point in edge_points:
             print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
+
+    # if test_no == 4:
+    #     # TEST 4
+    #     points_A = data["points_A"]
+    #     for point in points_A:
+    #         print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
+    #         input()
+    #         # break
 
     # for vis in kirkpatrick.preprocessing_visualization_seteps:
     #     vis.show()
