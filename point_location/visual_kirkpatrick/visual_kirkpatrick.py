@@ -486,7 +486,40 @@ class VisualKirkpatrick:
 
     def get_embedding(self, points, edges):
         def get_cmp_clockwise_for_embedding(vertex):
-            return lambda v1, v2: (orient(vertex_to_point[vertex], vertex_to_point[v1], vertex_to_point[v2]))
+            def cmp_two_ponits(v1: int, v2: int):
+                nonlocal point
+                point = vertex_to_point[vertex]
+                p1 = vertex_to_point[v1]
+                p2 = vertex_to_point[v2]
+
+                vec1 = (p1[0] - point[0], p1[1] - point[1])
+                dx1, dy1 = vec1
+                vec2 = (p2[0] - point[0], p2[1] - point[1])
+                dx2, dy2 = vec2
+
+                if p1[1] >= point[1] and p2[1] < point[1]:
+                    return 1
+                if p1[1] < point[1] and p2[1] >= point[1]:
+                    return -1
+
+                cos1 = dx1 / np.sqrt(dx1 ** 2 + dy1 ** 2)
+                cos2 = dx2 / np.sqrt(dx2 ** 2 + dy2 ** 2)
+
+                if cos1 == cos2:
+                    return 0
+
+                if p1[1] < point[1]:
+                    if cos1 > cos2:
+                        return -1
+                    else:
+                        return 1
+                else:
+                    if cos1 > cos2:
+                        return 1
+                    else:
+                        return -1
+
+            return cmp_two_ponits
 
         graph: dict[int, list] = {}
         vertex_to_point = {}
