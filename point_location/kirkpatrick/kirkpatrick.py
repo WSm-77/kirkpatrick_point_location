@@ -1,6 +1,7 @@
 import networkx as nx
 import triangle
 import mapbox_earcut
+import numpy as np
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
 from computational_utils.utils import orient
@@ -80,8 +81,37 @@ class Kirkpatrick:
 
         return neighbour_triangles_list
 
-    def get_cmp_clockwise(self, point):
-        return lambda p1, p2: (orient((point.x, point.y), (p1.x, p1.y), (p2.x, p2.y)))
+    def get_cmp_clockwise(self, point: Point):
+        def cmp_two_ponits(p1: Point, p2: Point):
+            nonlocal point
+            vec1 = (p1.x - point.x, p1.y - point.y)
+            dx1, dy1 = vec1
+            vec2 = (p2.x - point.x, p2.y - point.y)
+            dx2, dy2 = vec2
+
+            if p1.y >= point.y and p2.y < point.y:
+                return 1
+            if p1.y < point.y and p2.y >= point.y:
+                return -1
+
+            cos1 = dx1 / np.sqrt(dx1 ** 2 + dy1 ** 2)
+            cos2 = dx2 / np.sqrt(dx2 ** 2 + dy2 ** 2)
+
+            if cos1 == cos2:
+                return 0
+
+            if p1.y < point.y:
+                if cos1 > cos2:
+                    return -1
+                else:
+                    return 1
+            else:
+                if cos1 > cos2:
+                    return 1
+                else:
+                    return -1
+
+        return cmp_two_ponits
 
     def retriangulate_hole(self, neighbours_ordered_clockwise):
         points_cnt = len(neighbours_ordered_clockwise)
@@ -337,7 +367,40 @@ class Kirkpatrick:
 
     def get_embedding(self, points, edges):
         def get_cmp_clockwise_for_embedding(vertex):
-            return lambda v1, v2: (orient(vertex_to_point[vertex], vertex_to_point[v1], vertex_to_point[v2]))
+            def cmp_two_ponits(v1: int, v2: int):
+                nonlocal point
+                point = vertex_to_point[vertex]
+                p1 = vertex_to_point[v1]
+                p2 = vertex_to_point[v2]
+
+                vec1 = (p1[0] - point[0], p1[1] - point[1])
+                dx1, dy1 = vec1
+                vec2 = (p2[0] - point[0], p2[1] - point[1])
+                dx2, dy2 = vec2
+
+                if p1[1] >= point[1] and p2[1] < point[1]:
+                    return 1
+                if p1[1] < point[1] and p2[1] >= point[1]:
+                    return -1
+
+                cos1 = dx1 / np.sqrt(dx1 ** 2 + dy1 ** 2)
+                cos2 = dx2 / np.sqrt(dx2 ** 2 + dy2 ** 2)
+
+                if cos1 == cos2:
+                    return 0
+
+                if p1[1] < point[1]:
+                    if cos1 > cos2:
+                        return -1
+                    else:
+                        return 1
+                else:
+                    if cos1 > cos2:
+                        return 1
+                    else:
+                        return -1
+
+            return cmp_two_ponits
 
         graph: dict[int, list] = {}
         vertex_to_point = {}
@@ -354,105 +417,3 @@ class Kirkpatrick:
             graph[vertex].sort(key = cmp_to_key(get_cmp_clockwise_for_embedding(vertex)))
 
         return graph
-
-#### TESTING ####
-
-def draw_planar_map(planar_map):
-    fig, ax = plt.subplots()
-
-    # Rysowanie wierzchołków
-    for node in planar_map.iternodes():
-        ax.plot(node.x, node.y, 'o', color='blue')  # Wierzchołki jako niebieskie kropki
-        ax.text(node.x, node.y, f"{node.x, node.y}", fontsize=8, color='red')  # Indeksy wierzchołków
-
-    # Rysowanie krawędzi
-    for edge in planar_map.iteredges():
-        start_node = edge.source  # Początkowy wierzchołek
-        end_node = edge.target  # Końcowy wierzchołek
-        x = [start_node.x, end_node.x]
-        y = [start_node.y, end_node.y]
-        ax.plot(x, y, 'k-', linewidth=1)  # Rysowanie krawędzi jako czarna linia
-
-    ax.set_aspect('equal', adjustable='datalim')
-    plt.show()
-
-def draw_initial_faces(vertices, edges):
-    plt.figure()
-
-    # Draw edges
-    for edge in edges:
-        start = vertices[edge[0]]
-        end = vertices[edge[1]]
-        plt.plot([start[0], end[0]], [start[1], end[1]], 'k-')  # Draw edge
-
-    # Draw vertices
-    for vertex in vertices:
-        plt.plot(vertex[0], vertex[1], 'ro')  # Draw vertex
-
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.grid()
-    plt.show()
-
-if __name__ == "__main__":
-    import json
-    import os
-    import matplotlib.pyplot as plt
-
-    test_no = 2
-    test_dir = "test_input"
-    test_name = f"test{test_no}.json"
-
-    with open(os.path.join(test_dir, test_name), 'r') as file:
-        data = json.load(file)
-
-    vertices = data["vertices"]
-    segments = data["segments"]
-
-    kirkpatrick = Kirkpatrick(vertices, segments)
-
-    draw_initial_faces(vertices,segments)
-    draw_planar_map(kirkpatrick.planar_map)
-
-    kirkpatrick.preprocess()
-
-    if test_no == 1:
-        # TEST 1
-        points_A = data["points_A"]
-        for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
-
-    if test_no == 2:
-        # TEST 2
-        points_A = data["points_A"]
-        for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
-
-    if test_no == 3:
-        # TEST 3
-        # points that should be in first face (test 3)
-        points_A = data["points_A"]
-
-        # points that should be in the second face (test 3)
-        points_B = data["points_B"]
-
-        # points that are outside of input faces
-        points_outside = data["points_outside"]
-
-        # points on the edge
-        edge_points = data["edge_points"]
-
-        print("TESTING POINTS IN FIRST FACE")
-        for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
-
-        print("\nTESTING POINTS IN SECOND FACE")
-        for point in points_B:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
-
-        print("\nTESTING POINTS OUTSIDE")
-        for point in points_outside:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
-
-        print("\nTESTING EDGE POINTS")
-        for point in edge_points:
-            print(f'point: {point} is inside {kirkpatrick.locate_point(point)}')
