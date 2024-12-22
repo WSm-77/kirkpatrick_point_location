@@ -282,7 +282,6 @@ class VisualKirkpatrick:
         input_points_cnt = len(self.input_points)
 
         while input_points_cnt > 0:
-            # print(f"\n\n\n######### NEXT ITTERATION #########\n\n\n")
             self.triangulation_level += 1
 
             independent_points_set = self.get_independent_points_set()
@@ -295,15 +294,8 @@ class VisualKirkpatrick:
             list_of_new_triangles_list = []
 
             for independent_point in independent_points_set:
-                # print(f"#### independent point ####\n\n")
-                # print(independent_point)
-                # print("\n\n")
                 neighbours_ordered_clockwise = [point for point in self.planar_map.iteradjacent(independent_point)]
                 neighbours_ordered_clockwise.sort(key = cmp_to_key(self.get_cmp_clockwise(independent_point)))
-
-                # print(f"#### neighbours clockwise ####\n\n")
-                # print(list(map(lambda p: (float(p.x), float(p.y)), neighbours_ordered_clockwise)))
-                # print("\n\n")
 
                 neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
 
@@ -312,12 +304,6 @@ class VisualKirkpatrick:
                 self.planar_map.del_node(independent_point)
 
                 triangulation_data = self.retriangulate_hole(neighbours_ordered_clockwise)
-
-                # print(f"#### triangles ####\n\n")
-                # print(triangulation_data)
-                # print("\n\n")
-
-                # input()
 
                 new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
 
@@ -334,8 +320,6 @@ class VisualKirkpatrick:
             self.triangulation_levels_vis.append(self.planar_map_to_visualization_step())
 
             input_points_cnt -= len(independent_points_set)
-
-            # draw_planar_map(self.planar_map)
 
     def assert_planarity(self, input_edges):
         planar_subdivision = nx.Graph()
@@ -536,150 +520,3 @@ class VisualKirkpatrick:
             graph[vertex].sort(key = cmp_to_key(get_cmp_clockwise_for_embedding(vertex)))
 
         return graph
-
-#### TESTING ####
-
-def draw_planar_map(planar_map):
-    fig, ax = plt.subplots()
-
-    # Rysowanie wierzchołków
-    for node in planar_map.iternodes():
-        ax.plot(node.x, node.y, 'o', color='blue')  # Wierzchołki jako niebieskie kropki
-        ax.text(node.x, node.y, f"{round(float(node.x), 1), round(float(node.y), 1)}", fontsize=8, color='red')  # Indeksy wierzchołków
-
-    # Rysowanie krawędzi
-    for edge in planar_map.iteredges():
-        start_node = edge.source  # Początkowy wierzchołek
-        end_node = edge.target  # Końcowy wierzchołek
-        x = [start_node.x, end_node.x]
-        y = [start_node.y, end_node.y]
-        ax.plot(x, y, 'k-', linewidth=1)  # Rysowanie krawędzi jako czarna linia
-
-    ax.set_aspect('equal', adjustable='datalim')
-    plt.show()
-
-def draw_initial_faces(vertices, edges):
-    plt.figure()
-
-    # Draw edges
-    for edge in edges:
-        start = vertices[edge[0]]
-        end = vertices[edge[1]]
-        plt.plot([start[0], end[0]], [start[1], end[1]], 'k-')  # Draw edge
-
-    # Draw vertices
-    for vertex in vertices:
-        plt.plot(vertex[0], vertex[1], 'ro')  # Draw vertex
-
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.grid()
-    plt.show()
-
-if __name__ == "__main__":
-    import json
-    import os
-    import matplotlib.pyplot as plt
-
-    test_no = 4
-    test_dir = "../../test_input"
-    test_name = f"test{test_no}.json"
-
-    # with open(os.path.join(test_dir, test_name), 'r') as file:
-    #     data = json.load(file)
-
-    data = {
-    "vertices" : [
-        [-5.161290322580646, 6.082251082251084],
-        [1.5322580645161281, 7.813852813852815],
-        [3.991935483870968, 1.0497835497835517],
-        [-2.983870967741936, -1.6558441558441555],
-        [-6.693548387096775, 1.1038961038961048],
-        [-3.145161290322582, 3.322510822510825],
-        [0.12096774193548221, 3.322510822510825]
-    ],
-
-    "segments" : [
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [3, 4],
-        [0, 4],
-        [4, 5],
-        [3, 6],
-        [6, 5],
-        [2, 6],
-        [5, 1]
-    ],
-
-    "points_A" : [
-        [-4, 5]
-    ]
-    }
-
-    vertices = data["vertices"]
-    segments = data["segments"]
-
-    kirkpatrick = VisualKirkpatrick(vertices, segments)
-
-    # draw_initial_faces(vertices,segments)
-    draw_planar_map(kirkpatrick.planar_map)
-
-    # kirkpatrick.preprocess()
-    # kirkpatrick.visual_preprocessing()
-    # input()
-
-    if test_no == 1:
-        # TEST 1
-        points_A = data["points_A"]
-        for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-
-    if test_no == 2:
-        # TEST 2
-        points_A = data["points_A"]
-        for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-            input()
-            # break
-
-    if test_no == 3:
-        # TEST 3
-        # points that should be in first face (test 3)
-        points_A = data["points_A"]
-
-        # points that should be in the second face (test 3)
-        points_B = data["points_B"]
-
-        # points that are outside of input faces
-        points_outside = data["points_outside"]
-
-        # points on the edge
-        edge_points = data["edge_points"]
-
-        print("TESTING POINTS IN FIRST FACE")
-        for point in points_A:
-            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-
-        print("\nTESTING POINTS IN SECOND FACE")
-        for point in points_B:
-            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-
-        print("\nTESTING POINTS OUTSIDE")
-        for point in points_outside:
-            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-
-        print("\nTESTING EDGE POINTS")
-        for point in edge_points:
-            print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-
-    # if test_no == 4:
-    #     # TEST 4
-    #     points_A = data["points_A"]
-    #     for point in points_A:
-    #         print(f'point: {point} is inside {kirkpatrick.visual_locate_point(point)}')
-    #         input()
-    #         # break
-
-    # for vis in kirkpatrick.preprocessing_visualization_seteps:
-    #     vis.show()
-    #     input()
