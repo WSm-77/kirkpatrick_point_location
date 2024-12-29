@@ -5,14 +5,22 @@ import numpy as np
 from planegeometry.structures.planarmaps import PlanarMap, Point, Segment, Triangle
 from functools import cmp_to_key
 from computational_utils.utils import orient
+from bit_algo_vis_tool.visualizer.visualizer import Visualizer
 
-class Kirkpatrick:
+class VisualKirkpatrick:
     def __init__(self, input_points: list[tuple[float, float]], input_edges: list[tuple[int, int]]):
         # verify graph planarity
         self.assert_planarity(input_edges)
 
         self.input_points = input_points
         self.input_edges = input_edges
+
+        self.input_vis = Visualizer()
+        self.input_vis.add_title("given planar subdivision")
+        self.input_vis.add_point(input_points)
+        self.input_vis.add_line_segment([(self.input_points[point1_idx], self.input_points[point2_idx]) for point1_idx, point2_idx in input_edges])
+
+        self.preprocessing_visualization_seteps = [self.input_vis]
 
         embedding = self.get_embedding(input_points, input_edges)
 
@@ -48,7 +56,41 @@ class Kirkpatrick:
 
         self.triangles_to_faces_map = {}
 
+        self.triangulation_level = 0
+
         self.initialize_hierarchy_graph_and_faces_map()
+
+        self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("perform triangulation"))
+        self.triangulation_levels_vis = [self.planar_map_to_visualization_step()]
+
+    def visual_preprocessing(self):
+        self.preprocess()
+        for vis in self.preprocessing_visualization_seteps:
+            vis.show()
+
+    def planar_map_to_visualization_step(self, step_title: str = "") -> Visualizer:
+        vis = Visualizer()
+
+        points = []
+        for point_object in self.planar_map.iterpoints():
+            point = (point_object.x, point_object.y)
+            points.append(point)
+
+        edges = []
+        for edge_object in self.planar_map.iteredges():
+            point1_object = edge_object.source
+            point2_object = edge_object.target
+
+            edge = ((point1_object.x, point1_object.y), (point2_object.x, point2_object.y))
+            edges.append(edge)
+
+        if step_title:
+            vis.add_title(step_title)
+
+        vis.add_point(points)
+        vis.add_line_segment(edges)
+
+        return vis
 
     def get_independent_points_set(self):
         checked = set()
@@ -168,10 +210,12 @@ class Kirkpatrick:
         for new_triangle in new_triangles:
             for prev_triangle in prev_triangles:
                 if triangles_intersect(new_triangle, prev_triangle):
-                    if new_triangle not in self.hierarchy_graph: self.hierarchy_graph[new_triangle] = []
-                    self.hierarchy_graph[new_triangle].append(prev_triangle)
+                    new_triangle_tuple = (new_triangle, self.triangulation_level)
+                    if new_triangle_tuple not in self.hierarchy_graph:
+                        self.hierarchy_graph[new_triangle_tuple] = []
+                    self.hierarchy_graph[new_triangle_tuple].append(prev_triangle)
 
-    def locate_point(self, point) -> int:
+    def visual_locate_point(self, point) -> int:
         if not isinstance(point, Point):
             point = Point(*point)
 
@@ -181,25 +225,73 @@ class Kirkpatrick:
         if point not in bounding_tringle:
             return None
 
-        triangle_containing_point = bounding_tringle
+        vis_objects_list = []
 
-        # while current graph element has children
-        while self.hierarchy_graph[triangle_containing_point]:
-            for child in self.hierarchy_graph[triangle_containing_point]:
+        triangle_containing_point = bounding_tringle
+        triangle_level_tuple = (triangle_containing_point, self.triangulation_level)
+
+        for idx, triangulation_level_vis in enumerate(reversed(self.triangulation_levels_vis)):
+            vis_objects_list.append([])
+
+            triangle_containing_point, triangulation_level = triangle_level_tuple
+
+            triangle_points = [(point_object.x, point_object.y) for point_object in triangle_containing_point.iterpoints()]
+
+            polygon_vis = triangulation_level_vis.add_polygon(triangle_points, color = "green", alpha = 0.6)
+            point_vis = triangulation_level_vis.add_point((point.x, point.y))
+
+            vis_objects_list[idx].append(polygon_vis)
+            vis_objects_list[idx].append(point_vis)
+
+            if triangle_level_tuple not in self.hierarchy_graph:
+                triangle_level_tuple = (triangle_containing_point, triangulation_level - 1)
+                continue
+
+            for child in self.hierarchy_graph[triangle_level_tuple]:
                 if point in child:
-                    triangle_containing_point = child
+                    triangle_level_tuple = (child, triangulation_level - 1)
                     break
 
+        triangle_containing_point = triangle_level_tuple[0]
+
+        face = None
+
         if triangle_containing_point in self.triangles_to_faces_map:
-            return self.face_to_points(self.triangles_to_faces_map[triangle_containing_point])
-        else:
-            return None
+            face = self.face_to_points(self.triangles_to_faces_map[triangle_containing_point])
+
+        for vis, to_remove_list in zip(reversed(self.triangulation_levels_vis), vis_objects_list):
+            vis.show()
+            for to_remove in to_remove_list:
+                vis.remove_figure(to_remove)
+
+        input_vis_to_remove = []
+
+        input_vis_to_remove.append(self.input_vis.add_point((point.x, point.y)))
+
+        if face:
+            input_vis_to_remove.append(self.input_vis.add_polygon(face, color = "green", alpha = 0.6))
+
+        self.input_vis.show()
+
+        for to_remove in input_vis_to_remove:
+            self.input_vis.remove_figure(to_remove)
+
+        return face
 
     def preprocess(self):
         input_points_cnt = len(self.input_points)
 
         while input_points_cnt > 0:
+            self.triangulation_level += 1
+
             independent_points_set = self.get_independent_points_set()
+
+            preprocess_step_vis = self.planar_map_to_visualization_step("locate independent points")
+            preprocess_step_vis.add_point([(point_object.x, point_object.y) for point_object in independent_points_set], color="red")
+            self.preprocessing_visualization_seteps.append(preprocess_step_vis)
+
+            list_of_neighbour_triangles_list = []
+            list_of_new_triangles_list = []
 
             for independent_point in independent_points_set:
                 neighbours_ordered_clockwise = [point for point in self.planar_map.iteradjacent(independent_point)]
@@ -207,15 +299,25 @@ class Kirkpatrick:
 
                 neighbour_triangles_list = self.get_neighbour_triangles_list(independent_point, neighbours_ordered_clockwise)
 
+                list_of_neighbour_triangles_list.append(neighbour_triangles_list)
+
                 self.planar_map.del_node(independent_point)
 
                 triangulation_data = self.retriangulate_hole(neighbours_ordered_clockwise)
 
                 new_triangles_list: list[Triangle] = self.get_triangles_from_triangulation(triangulation_data, neighbours_ordered_clockwise)
 
-                self.add_missing_edges(new_triangles_list)
+                list_of_new_triangles_list.append(new_triangles_list)
 
+            self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("delete independent points"))
+
+            for neighbour_triangles_list, new_triangles_list in zip(list_of_neighbour_triangles_list, list_of_new_triangles_list):
+                self.add_missing_edges(new_triangles_list)
                 self.process_hierarchy_of_triangles(neighbour_triangles_list, new_triangles_list)
+
+            self.preprocessing_visualization_seteps.append(self.planar_map_to_visualization_step("retriangulate holes"))
+
+            self.triangulation_levels_vis.append(self.planar_map_to_visualization_step())
 
             input_points_cnt -= len(independent_points_set)
 
@@ -237,9 +339,10 @@ class Kirkpatrick:
             point_c = self.idx_to_point(c)
 
             triangle_object = Triangle(point_a, point_b, point_c)
+            triangle_level = (triangle_object, self.triangulation_level)
 
-            if triangle_object not in self.hierarchy_graph:
-                self.hierarchy_graph[triangle_object] = []
+            if triangle_level not in self.hierarchy_graph:
+                self.hierarchy_graph[triangle_level] = []
 
             for face_idx, face_set in enumerate(faces_sets):
                 # check if current triangle is included in current face
