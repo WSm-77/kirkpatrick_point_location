@@ -1,55 +1,58 @@
-# Kirkpatrick point location algorithm
+# Kirkpatrick Point Location Algorithm
 
-To repozytorium zawiera implementację algorytmu Kirckpatricka.
+This repository serves as an educational resource explaining the working principles of the Kirkpatrick point location algorithm.
 
-## Klonowanie repozytorium
+## Showcase
 
-Aby skolonować to repozytorium musimy skorzystać z komendy:
+<img src="description_resources/kikrpatrick_point_location.gif" alt="Kirkpatrick point location algorithm showcase">
+
+## Cloning the Repository
+
+To clone this repository, use the following command:
 
 ```bash
 git clone https://github.com/WSm-77/Kirkpatrick-point-location.git
 ```
 
-## Narzędzie bit_algo_vis_tool
+## bit\_algo\_vis\_tool Utility
 
-Podczas realizacji projektu korzystaliśmy z narzędzia dostarczonego przez koło naukowe **_Bit_**.
+During the project, we utilized a tool provided by the ***Bit*** student's research group.
 
-### Konfiguracja środowiska
+### Setting Up the Environment
 
-Aby odpowiednio skonfigurować środowisko należy wykonać następujące kroki:
+To properly configure the environment, follow these steps:
 
-#### 1. Stworzenie środowiska
+#### 1. Create a Virtual Environment
 
 ```bash
 conda create --name kirkpatrick python=3.9
 conda activate kirkpatrick
 ```
-#### 2. Pobranie niezbędnych pakietów
+
+#### 2. Install Required Packages
 
 ```bash
 python3 setup.py sdist
 python3 -m pip install -e .
 ```
 
-#### 3. Użytkowanie
+#### 3. Usage
 
-Teraz jeżeli jesteśmy w nowo stworzonym środowisku (w terminalu przed nazwą użytkownika powinno wyświetlać się __(kirkpatrick)__) tworzymy Jupyter notebook, w którym jako kernel wybieramy interpreter pythonowy z nowo stworzonego środowiska.
+Once inside the newly created environment (you should see **(kirkpatrick)** before the username in the terminal), create a Jupyter notebook and select the Python interpreter from this environment as the kernel.
 
-W przypadku zwykłych skryptów pythonowych (plików _.py_) w VSCode możemy ustawić interpreter na ten z środowiska __kirkpatrick__:
+For standard Python scripts (*.py* files) in VSCode, you can set the interpreter to the one from the **kirkpatrick** environment:
 
-```
-Ctrl+Shift+P > Python: Select Interpreter
-```
+> Ctrl+Shift+P > Python: Select Interpreter
 
-Miejsce, w którym stworzymy nowy plik nie ma znaczenia - konfiguracja środowiska sprawia, że folder _bit_algo_vis_tool_ jest widoczny z każdego miejsca w projekcie tak jak dowolny inny pakiet pythonowy taki jak _numpy_ czy _matplotlib_, więc jeżeli przykładowo chcemy skorzystać z klasy **_Visualizer_** wystarczy ją zaimportować:
+The location where you create new files does not matter. The environment configuration ensures that the *bit\_algo\_vis\_tool* folder is accessible from anywhere in the project, just like any other Python package such as *numpy* or *matplotlib*. For example, to use the ***Visualizer*** class, simply import it:
 
 ```python
 from bit_algo_vis_tool.visualizer.visualizer import Visualizer
 ```
 
-W przypadku problemów pierwszym krokiem powinno być zrestartowanie środowiska:
+If you encounter issues, the first troubleshooting step should be restarting the environment:
 
 ```bash
 conda deactivate
-conda activate kirkpatirck
+conda activate kirkpatrick
 ```
